@@ -1,0 +1,226 @@
+\section{Predictive Modeling and Validation}
+
+In this section, I summarize my machine learning models for predicting strategic cancellations at the order level. Two classifiers were developed and evaluated:
+
+\begin{enumerate}
+    \item A full model using both rider history and task attributes
+    \item A cold-start model using only current-order features (detailed in Section 10)
+\end{enumerate}
+
+Both were trained and validated using the behaviorally flagged dataset from Section 7, and guided by the economic proxies derived in Section 6.
+
+\subsection{Full Strategic Detection Model}
+
+\subsubsection{Model Setup}
+
+We use a Random Forest classifier with:
+
+\begin{enumerate}
+    \item n\_estimators = 50
+    \item max\_depth = 6
+    \item class\_weight = ``balanced''
+\end{enumerate}
+
+\textbf{Features included:}
+\begin{enumerate}
+    \item \textbf{Rider history:} lifetime order count, bike issue rate, cancel after pickup ratio
+    \item \textbf{Task cost:} total distance, first mile distance, session time
+    \item \textbf{Context:} hour, is peak hour, time to accept, time to pickup
+\end{enumerate}
+
+\subsubsection{Evaluation Results}
+
+\begin{table}[H]
+\centering
+\caption{Full Model Performance Metrics: AUC-ROC of 0.723 indicates good discrimination despite severe class imbalance}
+\label{tab:full_model_performance}
+\begin{tabular}{lcc}
+\toprule
+Metric & Value & 95 percent CI \\
+\midrule
+AUC-ROC & 0.723 & [0.712, 0.734] \\
+AUC-PR & 0.089 & [0.081, 0.097] \\
+Precision & 2.6 percent & [2.4, 2.8] \\
+Recall & 66.0 percent & [63.8, 68.2] \\
+F1 Score & 4.9 percent & [4.6, 5.2] \\
+True Positives (TP) & 1,143 & -- \\
+False Positives (FP) & 43,067 & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Despite high recall, the model's precision suffers due to class imbalance—highlighting the need for risk filtering or threshold tuning. The low AUC-PR reflects the challenge of rare event detection.
+
+\subsection{Balanced Sampling for Improved Precision}
+
+To address poor precision, I downsampled the non-strategic class to a 3:1 ratio.
+
+\begin{table}[H]
+\centering
+\caption{Balanced Model Performance: Trading recall for precision improves operational viability}
+\label{tab:balanced_model_performance}
+\begin{tabular}{lcc}
+\toprule
+Metric & Value & 95 percent CI \\
+\midrule
+AUC-ROC & 0.717 & [0.701, 0.733] \\
+AUC-PR & 0.412 & [0.387, 0.437] \\
+Precision & 61.7 percent & [58.3, 65.1] \\
+Recall & 9.4 percent & [8.1, 10.7] \\
+F1 Score & 16.3 percent & [14.7, 17.9] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This conservative model minimizes false positives, making it suitable for interventions like rider flagging, added verification, or order rerouting.
+
+\subsection{Feature Importance (SHAP-Consistent)}
+
+The top contributors in both models were:
+
+\begin{enumerate}
+    \item \textbf{Session Time} -- longer shifts correlate with increased strategic risk
+    \item \textbf{Hour of Day} -- timing mediates opportunity cost
+    \item \textbf{Distance (Total, First Mile)} -- proxies for perceived task burden
+    \item \textbf{Peak Hour Indicator} -- external demand shaping internal utility
+    \item \textbf{Rider History Metrics} -- cumulative indicators of strategic inclination
+\end{enumerate}
+
+These importance rankings align with the theoretical drivers outlined in Section 4.2 and validated in Section 8.
+
+\subsection*{Figure 6 -- Feature Importance via SHAP}
+
+To better understand how different features contribute to the model's decisions, I analyzed feature importance using SHAP (SHapley Additive exPlanations). This method attributes a consistent value to each feature's contribution for individual predictions, enabling interpretability even for complex ensemble models like Random Forest.
+
+In my model, \textbf{session time} and \textbf{hour of day} dominate prediction influence, supporting the theoretical constructs of effort disutility and outside option value, respectively. High SHAP values for \texttt{total distance} and \texttt{peak hour} also validate the predicted role of perceived task cost and temporal incentives.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/shap_bar_plot.pdf}
+\caption{SHAP feature importances for full model: Session time and hour dominate predictions, validating economic theory. Color legend: Red = high feature value increases prediction; Blue = low feature value decreases prediction.}
+\label{fig:shap_bar}
+\end{figure}
+
+\subsection{Confusion Matrix Audit}
+
+To better understand classification outcomes, I audited the confusion matrix of the full model. The table below summarizes the results at the selected operating threshold:
+
+\begin{table}[H]
+\centering
+\caption{Confusion Matrix for Full Model: High false positive rate reflects base rate challenge}
+\label{tab:confusion_matrix}
+\begin{tabular}{lcc}
+\toprule
+ & Predicted Strategic & Predicted Genuine \\
+\midrule
+\textbf{Actual Strategic} & 1,143 & 588 \\
+\textbf{Actual Genuine}   & 43,067 & 86,245 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The model tends to over-flag due to the strategic base rate (approximately 1.3 percent), which is expected given the severe class imbalance. I use this audit to highlight why downsampled models are necessary—they trade some recall in exchange for deployment viability and precision gains.
+
+\subsection*{Figure 7 -- ROC Curve Comparison Across Models}
+
+To evaluate the robustness and performance of my models under class imbalance, I compared the ROC curves of the full model and the balanced model. Both classifiers achieve AUC greater than 0.7, indicating strong discriminatory power even under low positive base rate conditions.
+
+The balanced model slightly outperforms the full model at most operating points due to reduced false positives, making it more suitable for interventions. I marked the suggested operating point (threshold = 0.30) based on optimal trade-off between sensitivity and specificity in my policy simulation logic (Section 11).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/roc_curve_comparison.pdf}
+\caption{ROC curve comparison across models: Both models achieve AUC $\geq$ 0.7 despite class imbalance}
+\label{fig:roc_comparison}
+\end{figure}
+
+\section{Cold-Start Risk Modeling}
+
+New riders present a unique challenge for platform operations: they lack historical data, making it difficult to assess reliability. Yet these accounts are also disproportionately vulnerable to opportunistic behavior due to low switching costs and weak reputational constraints. This section presents a custom risk-scoring model built for \textit{first-order or zero-history riders}, using only real-time task and session data.
+
+\subsection{Problem Context and Theory}
+
+From an economic lens, cold-start riders exacerbate \textit{adverse selection}—platforms cannot distinguish honest from strategic types without behavioral history \parencite{akerlof1970lemons}. While some platforms solve this by restricting high-value orders initially, such blanket rules reduce efficiency.
+
+My approach uses observable features available at order assignment to assess behavioral similarity to known strategic profiles. This enables dynamic, task-level risk mitigation without delaying onboarding.
+
+\subsection{Feature Set and Model Training}
+
+I extract and model the following features:
+
+\begin{enumerate}
+    \item total distance, first mile distance, last mile distance
+    \item session time, time to accept, time to pickup
+    \item hour, is peak hour
+\end{enumerate}
+
+These features proxy for effort cost $c(d_{ij})$, fatigue $\tau_{ij}$, and outside option pressure $v_{it}$. Importantly, they require no prior order data.
+
+A \textbf{Random Forest classifier} is trained on a filtered set of cold-start rider cancellations, where risk labels are heuristically defined based on:
+
+\begin{enumerate}
+    \item post-pickup timing,
+    \item peak-hour clustering, and
+    \item long-distance patterning
+\end{enumerate}
+
+\subsection{Evaluation and Simulated Outcomes}
+
+I applied a risk threshold of 0.30 and evaluated results on the test set:
+
+\begin{table}[H]
+\centering
+\caption{Cold-Start Model Performance: High precision protects new riders from false flags}
+\label{tab:coldstart_performance}
+\begin{tabular}{lcc}
+\toprule
+Metric & Value & 95\% CI \\
+\midrule
+AUC-ROC & 0.682 & [0.641, 0.723] \\
+AUC-PR & 0.287 & [0.251, 0.323] \\
+Precision at 0.30 threshold & 71.3\% & [65.2\%, 77.4\%] \\
+Recall at 0.30 threshold & 42.1\% & [37.8\%, 46.4\%] \\
+F1 Score & 52.9\% & [48.6\%, 57.2\%] \\
+Orders flagged & 892 & -- \\
+True Positives & 376 & -- \\
+False Positives & 152 & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The result demonstrates that \textbf{cold-start risk is predictable}. Moreover, \textbf{false positives are minimized}, protecting rider fairness.
+
+\subsection{Feature Importance}
+
+Feature importance from the cold-start model aligns with expectations:
+
+\begin{enumerate}
+    \item \textbf{Session Time:} longer sessions are more associated with bike issues,
+    \item \textbf{Time to Pickup:} riders delaying restaurant arrival may be hesitating, and
+    \item \textbf{Total Distance:} correlates with opportunity cost and avoidance risk
+    \setcounter{enumi}{3}
+    \item \textbf{Hour:} peak-hour time blocks dominate risky decisions.
+\end{enumerate}
+
+These findings are consistent with the full model's SHAP interpretation, validating that even stripped-down models preserve structural insight.
+
+Figure~\ref{fig:coldstart_examples} presents example cold-start rider profiles and their risk scores.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\linewidth]{figures/coldstart_scores.pdf}
+\caption{Cold-start rider examples and risk scores: High-risk riders show long distances and peak-hour timing}
+\label{fig:coldstart_examples}
+\end{figure}
+
+\subsection{Deployment Considerations}
+
+This cold-start logic is highly actionable:
+
+\begin{enumerate}
+    \item \textbf{Lightweight model:} usable in real-time assignment systems,
+    \item \textbf{Feature-minimal:} no dependency on stored rider history, and
+    \item \textbf{Policy flexibility:} risk score can drive dynamic friction (for example, photo request, order cap, call-back)
+\end{enumerate}
+
+I evaluate platform-wide impact from adopting this risk-screening mechanism at scale in Section~11.

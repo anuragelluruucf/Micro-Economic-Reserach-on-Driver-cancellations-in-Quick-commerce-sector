@@ -1,0 +1,45 @@
+\section{Data Description}
+
+My analysis is based on a proprietary administrative dataset from a leading food delivery platform in India, covering 447,187 orders. Each record represents a unique rider-order interaction, with associated timestamps, distance metrics, rider historical indicators, and cancellation outcomes. The dataset spans a wide operational period and captures the lifecycle of order fulfillment from assignment to delivery or cancellation.
+
+\subsection{Key Features}
+
+The dataset includes 21 variables, which can be grouped into the following categories:
+\begin{enumerate}
+    \item \textbf{Timestamps:} order time, order date, allot time, accept time, pickup time, delivered time, cancelled time;
+    \item \textbf{Distance and Task Complexity:} first mile distance, last mile distance, total distance, is long distance;
+    \item \textbf{Rider-Level History:} rider ID, allotted orders, delivered orders, lifetime order count, session time;
+    \item \textbf{Cancellation Flags:} cancelled, cancel after pickup, reason text, to remove.
+\end{enumerate}
+
+From these, I derive behavioral and proxy variables, including time-to-accept, time-to-pickup, and strategic flag indicators.
+
+\subsection{Data Quality and Missingness}
+
+The dataset has moderate missingness in timestamp fields:
+\begin{enumerate}
+    \item Cancelled time and reason text: 96 percent missing (as expected for non-cancelled orders);
+    \item Pickup time, delivered time, accept time: 1--2 percent missing;
+    \item Session time, lifetime order count: less than 1 percent missing.
+\end{enumerate}
+
+These gaps are handled via filtering or imputation depending on the modeling need. For example, my cancellation-time calculations and session-based features only use rows with valid pickup time and cancelled time.
+
+\subsection{Label Distribution}
+\begin{enumerate}
+    \item Total cancellations: 15,430 (approximately 3.45 percent);
+    \item Bike issue cancellations (via reason text): 2,406 (15.6 percent of cancellations); and
+    \item Post-pickup bike issues: 2,118 (approximately 88 percent of bike issues).
+\end{enumerate}
+
+\subsection{Summary Statistics}
+
+Key operational metrics from our dataset:
+\begin{enumerate}
+    \item Median delivery time: 28.3 minutes (from acceptance to delivery);
+    \item Average order distance: 5.7 km (total distance);
+    \item Peak hour concentration: 38.2 percent of all orders; and
+    \item Rider retention: 19,911 unique riders with a median of 22 orders per rider.
+\end{enumerate}
+
+This distribution informs the proxy labeling strategy used later in Section 7. It also motivates the need for predictive methods that can handle severe class imbalance. Full descriptive statistics are provided in Appendix Table A.3.

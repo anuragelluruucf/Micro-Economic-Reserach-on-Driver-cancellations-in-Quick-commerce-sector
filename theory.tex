@@ -1,0 +1,87 @@
+\section{Theoretical Framework}
+
+To model rider decisions under uncertainty and unverifiability, I adopt a structural microeconomic framework grounded in moral hazard theory, discrete choice under utility maximization, and strategic signaling. My goal is to formalize the tradeoffs a rational agent faces when choosing whether to complete or cancel an assigned order using unverifiable reasons (for example, bike issue).
+
+\subsection{Model Setup}
+
+Let each rider be indexed by $i$ and each delivery order by $j$. The platform matches a rider to an order at time $t$, where:
+\begin{enumerate}
+    \item $d_{ij}$: total distance of the order;
+    \item $\tau_{ij}$: cumulative time spent so far (session fatigue);
+    \item $\theta_i \in \{\text{Strategic}, \text{Honest}\}$: latent rider type;
+    \item $v_{it}$: outside option utility, for example, alternative platforms or idle time.
+\end{enumerate}
+
+The platform observes order-level features $X_{ij} \in \mathbb{R}^k$ (distances, timing), partial rider history $H_i$, and behavioral flags $F_{it}$, but not $\theta_i$ or $v_{it}$.
+
+Riders choose an action $a \in \{0, 1\}$:
+\begin{enumerate}
+    \item $a = 0$: complete delivery;
+    \item $a = 1$: request cancellation due to unverifiable issue.
+\end{enumerate}
+
+\subsection{Utility Specification}
+
+\begin{align}
+U_i(0) &= -c(d_{ij}) - \tau_{ij} + \varepsilon^0_{ij} \tag{1}\\
+U_i(1) &= -\psi_i + v_{it} + \varepsilon^1_{ij}, \tag{2}
+\end{align}
+
+Where:
+\begin{enumerate}
+    \item $c(d_{ij}) = \alpha_0 + \alpha_1 d_{ij} + \alpha_2 d_{ij}^2$: convex distance cost;
+    \item $\tau_{ij}$: time-based disutility;
+    \item $\psi_i = \psi_0 \cdot \mathbb{1}[\theta_i = \text{Honest}]$: lying cost (zero for strategic types);
+    \item $v_{it} = \beta_0 + \beta_1 \cdot \text{PeakHour}_{it}$: outside opportunity, higher in peak;
+    \item $\varepsilon_{ij}$: idiosyncratic shocks.
+\end{enumerate}
+
+The rider cancels when $U_i(1) > U_i(0)$. Since $\psi_i$ and $v_{it}$ are unobservable, I detect intent via observable correlates.
+
+\subsection{Proxy Labeling Strategy}
+
+Since $\theta_i$ is unobserved, I use a proxy classification logic based on the following behavioral thresholds:
+\begin{enumerate}
+    \item Bike issues count $\geq 2$: repetition of unverifiable excuse;
+    \item Post-pickup rate $> 70$ percent: cancels after food is collected;
+    \item Bike issue rate $> 20$ percent: proportion of cancellations using this excuse.
+\end{enumerate}
+
+These thresholds identify riders with high probability of strategic behavior, forming the core of my empirical label set (Section 7).
+
+\subsubsection{Threshold Optimization}
+
+I validated these thresholds through systematic F1-score maximization:
+
+\begin{table}[H]
+\centering
+\caption{Threshold Sensitivity Optimization (F1-Score Maximization)}
+\label{tab:threshold_opt}
+\begin{tabular}{cccc}
+\toprule
+Bike Issue Count & Post-Pickup Percent & Excuse Rate Percent & F1 Score \\
+\midrule
+2 & 70 & 20 & 0.049 \\
+3 & 80 & 30 & 0.043 \\
+1 & 50 & 10 & 0.041 \\
+2 & 60 & 15 & 0.046 \\
+3 & 70 & 25 & 0.047 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The optimal configuration (2, 70 percent, 20 percent) balances precision and recall, as shown in Table \ref{tab:threshold_opt}.
+
+\subsection{Testable Hypotheses}
+
+My framework generates the following testable predictions:
+
+\begin{enumerate}
+    \item \textbf{H1: Behavioral Repetition Matters}--riders with $\geq 2$ unverifiable cancellations have a significantly higher probability of repeating strategic behavior;
+    \item \textbf{H2: Peak Hour Sensitivity}--strategic cancels increase during high-demand periods due to rising $v_{it}$;
+    \item \textbf{H3: Cost-Sensitivity to Distance}--longer delivery distance increases strategic cancellations due to $c(d_{ij})$;
+    \item \textbf{H4: Post-Pickup Timing Is Not a Reliable Signal}--contrary to prior assumptions, speed of cancellation is not predictive of strategic intent;
+    \item \textbf{H5: Cold-Start Risk Can Be Predicted}--even without history, order-level and temporal features can predict strategic tendencies among new riders.
+\end{enumerate}
+
+These hypotheses are tested using regression, classification, threshold analysis, and economic simulation across Sections 8-11.

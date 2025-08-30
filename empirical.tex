@@ -1,0 +1,287 @@
+\section{Methodology}
+
+In this section, I describe the full modeling pipeline--from proxy label construction and feature engineering to predictive model design and interpretability methods. The methodology is explicitly shaped by the theoretical and empirical gaps surfaced in Sections 3 and 4, and aims to translate the economic decision model into a tractable, ethical, and operationally deployable detection mechanism.
+
+\subsection{Problem Formulation}
+
+I aim to identify and predict strategic cancellations, where a rider claims unverifiable bike issues as a means to abandon an assigned task. This presents a latent behavioral classification problem:
+
+\begin{enumerate}
+    \item \textbf{Detection (longitudinal):} Flag riders who persistently exhibit behavior matching strategic patterns;
+    \item \textbf{Prediction (real-time):} Estimate the probability that a given order will be cancelled strategically, using only observable features at or near task allocation.
+\end{enumerate}
+
+The cold-start rider problem--a key operational concern--is addressed separately in Section 10 using a structurally constrained, history-free version of the prediction model.
+
+\subsection{Labeling Strategy: Behavioral Proxy Classification}
+
+In the absence of direct intent ground truth, I construct proxy labels based on repeat patterns that violate platform norms. Drawing from Holmström and Milgrom's multitasking model (1991) and Jovanovic's threshold signaling (1982), I define a rider as strategic if they:
+
+\begin{enumerate}
+    \item Have $>2$ bike issue cancellations, to rule out one-off mechanical failures
+    \item Cancel $>70\%$ of their orders post-pickup, where verification is impossible
+    \item Cite bike issues in $>20\%$ of all their cancellations, suggesting strategic excuse clustering
+\end{enumerate}
+
+These heuristics identify riders with high probability of strategic behavior, defining the target for our detection model (Section 9).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/venn_strategic_classification.pdf}
+\caption{Threshold Logic for Strategic Rider Classification: All three criteria must be met}
+\label{fig:venn}
+\end{figure}
+
+\subsection{Feature Engineering}
+
+My feature engineering pipeline mirrors the economic structure of the rider's decision problem (Section 4.2), converting raw platform logs into interpretable economic proxies:
+
+\begin{enumerate}
+    \item \textbf{Cost of delivery:} total distance, first mile distance, last mile distance $\rightarrow$ proxies $c(d_{ij})$;
+    \item \textbf{Fatigue or sunk time:} session time, time to pickup $\rightarrow$ proxies $\tau_{it}$;
+    \item \textbf{Outside options:} is peak hour, hour $\rightarrow$ proxies $v_{it}$;
+    \item \textbf{Signaling behavior:} bike issue rate, cancel after pickup ratio $\rightarrow$ proxies $\theta_i$.
+\end{enumerate}
+
+Interaction terms (for example, Distance $\times$ Peak Hour) are included to test non-linear cross-effects predicted by my utility model.
+
+Notably, for cold-start riders, I exclude all historical variables (lifetime order count, bike issue rate) and rely exclusively on contextual and temporal information--consistent with \citeauthor{akerlof1970lemons}'s theory of uninformed platforms in adverse selection scenarios.
+
+\subsection{Model Architecture and Tuning}
+
+To implement my detection and prediction tasks, I employed Random Forest classifiers. This modeling choice is supported by Mullainathan and Spiess (2017), who highlight its ability to capture non-linear feature interactions without overfitting in moderately sized datasets.
+
+I tuned the following key hyperparameters using grid search and cross-validation:
+
+\begin{itemize}
+    \item \textbf{n\_estimators: 50--100 trees.}  
+    A higher number of trees increases model stability but adds computation cost. I found that beyond 100 trees, gains in predictive performance were negligible, while training time increased substantially.
+
+    \item \textbf{max\_depth: 6--10 levels.}  
+    I restricted tree depth to prevent overfitting on rare strategic cancellation patterns. Deeper trees tended to memorize outliers and inflate precision at the cost of generalization.
+
+    \item \textbf{class\_weight: "balanced".}  
+    This setting adjusts for the severe class imbalance in my data (strategic cancellations comprise only 1.3 percent of orders). Without this correction, the model would ignore the minority class and achieve deceptively high accuracy.
+
+    \item \textbf{cross-validation: 3--5 folds.}  
+    To ensure temporal generalizability, I split the training data across different order periods (e.g., early, mid, and late weeks). This mimics deployment by preventing pattern leakage from future orders. AUC-ROC was used as the primary scoring metric to reflect performance under imbalance.
+\end{itemize}
+
+For model comparability, all training sets are temporally split (training on early orders, testing on later), to avoid leakage of rider patterns and ensure deployment realism.
+
+\subsection{Evaluation Metrics}
+
+Given the real-world deployment stakes (platform policy, rider penalties), I use:
+
+\begin{enumerate}
+    \item \textbf{AUC-ROC:} Ranking quality across class imbalance;
+    \item \textbf{AUC-PR:} Area Under the Precision-Recall curve, more informative for rare events;
+    \item \textbf{Precision, Recall, F1:} Reflect cost tradeoffs between false positives and false negatives;
+    \item \textbf{Confusion Matrix:} For case-by-case audit, especially on cold-start predictions.
+\end{enumerate}
+
+Fairness checks include:
+\begin{enumerate}
+    \item Precision by rider tenure (to guard against penalizing new joiners);
+    \item False positive rate by hour (to detect peak-time bias);
+    \item Review of false positives via SHAP interpretation (Section 9.3).
+\end{enumerate}
+
+\subsection{Interpretability and Policy Feedback Loop}
+
+To meet ethical and operational constraints, I augment my ``black-box'' model with SHAP value analysis (Lundberg and Lee, 2017). SHAP values provide a unified measure of feature importance based on game theory:
+
+\begin{equation}
+\phi_i = \sum_{S \subseteq F \setminus \{i\}} \frac{|S|!(|F| - |S| - 1)!}{|F|!} [f_S(x_S \cup \{x_i\}) - f_S(x_S)],
+\end{equation}
+
+where $\phi_i$ is the SHAP value for feature $i$, $F$ is the set of all features, $S$ is a subset of features, and $f$ is the model prediction function.
+
+This connects each prediction back to the economic proxies:
+
+\begin{enumerate}
+    \item High SHAP for session time and total distance validates fatigue/effort logic;
+    \item High SHAP for is peak hour validates opportunity cost logic;
+    \item Low SHAP for time to cancel undermines prior assumptions that ``fast cancel = strategic''.
+\end{enumerate}
+
+These insights are used in Section 11 to design graduated intervention policies and in Section 13 to audit robustness and stakeholder fairness.
+
+\section{Strategic Detection Framework}
+
+In this section, I describe my primary framework for identifying strategic cancellation behavior. Guided by microeconomic theory and real platform data, I define a high-confidence classification approach based on behavioral repetition, unverifiability, and excuse clustering--three dimensions grounded in both theoretical incentives and empirical observability.
+
+\subsection{Behavioral Classification Criteria}
+
+I label a rider as engaging in strategic cancellation behavior if all of the following conditions hold:
+
+\begin{enumerate}
+    \item the rider has committed at least two cancellations citing bike issues over their lifecycle;
+    \item more than 70 percent of these cancellations occurred after pickup, when verification is least feasible;
+    \item over 20 percent of their total cancellations are categorized under bike issues, indicating excuse-patterning.
+\end{enumerate}
+
+These thresholds ensure that the flagged behavior is:
+
+\begin{itemize}
+    \item Repeated, not incidental;
+    \item Unverifiable by design, maximizing asymmetry; and
+    \item Systematic, not randomly distributed across reasons.
+\end{itemize}
+
+This framework identifies 143 riders (approximately 0.7 percent of the dataset) as high-likelihood strategic actors. Across these riders, 5,862 orders are labeled as strategically canceled and used for model training in subsequent sections.
+
+\subsection{Behavioral Evidence in Data}
+
+I observe three strong empirical signatures:
+
+\begin{enumerate}
+    \item \textbf{high clustering of excuse type:} strategic riders consistently cite the same unverifiable issue across cancellations.
+    \item \textbf{high post-pickup cancellation rate:} over 90 percent of strategic cancels occur after the order is picked up, reducing verifiability.
+    \item \textbf{positive fatigue slope:} the likelihood of citing a bike issue increases with session duration, consistent with the disutility cost term $\tau_{it}$ in the utility model.
+\end{enumerate}
+
+\subsection{Operational Interpretability}
+
+This framework provides an interpretable mechanism for platforms. It satisfies the following properties:
+
+\begin{enumerate}
+    \item it is auditable (based on log data only),
+    \item it is fair (requires patterns, not one-off behavior), and
+    \item it is generalizable across platform settings and geographies.
+\end{enumerate}
+
+I apply this framework in the empirical hypothesis testing (Section 8) and to train predictive classifiers (Section 9) and policy simulations (Section 11).
+
+\section{Empirical Hypothesis Testing}
+
+In this section, I present the results of testing the five core hypotheses outlined in my theoretical framework (Section 4.4), using the labeled data and engineered features described in Sections 5--7. Each hypothesis is grounded in economic logic and evaluated through both descriptive statistics and inferential methods.
+
+\subsection{H1 -- Behavioral Repetition as a Predictor of Strategic Type}
+
+\textbf{Hypothesis:} Riders with repeated unverifiable cancellations ($\geq$2 bike issue cases) are significantly more likely to continue exhibiting strategic behavior.
+
+\textbf{Method:} I segment riders based on the number of prior bike issue cancellations and compute the probability of subsequent cancellations also citing bike issues.
+
+\textbf{Findings:} The probability of a bike issue claim increases from 8.3 percent at $k=1$ to 31.7 percent at $k=2$.  
+A likelihood ratio test yields $p = 0.001$, validating the hypothesis. This supports the behavioral threshold model of strategic escalation.
+
+As depicted in Figure 2, the probability curve exhibits a sharp discontinuity at the $k = 2$ threshold.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/h1_threshold_curve.pdf}
+\caption{Strategic probability curve by number of past incidents (H1 test): Sharp jump from 8.3 percent to 31.7 percent at $k = 2$ incidents}
+\label{fig:h1_curve}
+\end{figure}
+
+\subsection{H2 -- Peak Hour Incentives and Outside Options}
+
+\textbf{Hypothesis:} Riders are more likely to cancel strategically during peak hours due to increased outside option value $v_{it}$.
+
+\textbf{Method:} I use both a two-proportion Z-test and logistic regression to test this hypothesis comprehensively.
+
+\textbf{Findings:}  
+Z-test: 27 percent of strategic orders occur in peak hours, compared to 18 percent for all other orders ($p = 0.01$).
+
+Logistic regression: Peak hour coefficient $\beta = 0.412$ (Standard Error (SE) = 0.087, $p = 0.001$).
+
+This translates to a 51 percent increase in the odds of strategic cancellation during peak hours.
+
+Figure 3 depicts the hourly distribution of strategic cancellations.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/h2_peak_hour_distribution.pdf}
+\caption{Strategic cancellation concentration by hour of day (H2 test): Clear peaks during lunch (12--14) and dinner (18--21) hours}
+\label{fig:h2_distribution}
+\end{figure}
+
+\subsection{H3 -- Strategic Sensitivity to Distance (Effort Cost)}
+
+\textbf{Hypothesis:} Longer distances increase the probability of strategic cancellations due to higher delivery cost $c(d_{ij})$.
+
+\textbf{Method:} I use logistic regression on total distance to predict strategic cancellation (binary outcome).
+
+\textbf{Findings:} The coefficient on distance is positive and significant ($\beta = 0.034$, $p = 0.001$), confirming a monotonic relationship.
+
+\textbf{Marginal Effect Interpretation:} In practical terms, this means that for every additional kilometer a driver must travel, the odds of strategic cancellation increase by approximately 3.4 percent. For a typical 10 km order (versus a 5 km order), this translates to a 17 percent higher likelihood of strategic cancellation—a substantial operational impact.
+
+As depicted in Figure 4, the relationship is approximately linear across typical order distances.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/h3_distance_effect.pdf}
+\caption{Distance effect on cancellation odds from logistic regression (H3 test): Each additional kilometer increases strategic cancellation odds by 3.4 percent}
+\label{fig:h3_distance}
+\end{figure}
+
+\subsection{H4 -- Post-Pickup Cancellation Timing is Not Predictive}
+
+\textbf{Hypothesis:} Cancellation speed (for instance, time to cancel after pickup) is not a reliable indicator of strategic intent.
+
+\textbf{Method:} Compare time to cancel between strategic and non-strategic post-pickup cancellations using t-test and effect size analysis.
+
+\textbf{Findings:}  
+\begin{itemize}
+    \item Mean time to cancel (strategic): 23.5 minutes (Standard Deviation (SD) = 18.2)
+    \item Mean time to cancel (non-strategic): 20.3 minutes (SD = 17.9)
+    \item T-test: $t(2116) = 1.47$, $p = 0.14$ (not statistically significant at $\alpha = 0.05$)
+    \item Cohen's $d = 0.18$ (small effect)
+    \item 95 percent Confidence Interval (CI) for difference: [--1.1, 7.5] minutes
+    \item Statistical power (post-hoc): 0.41
+\end{itemize}
+
+The $p$-value of 0.14 indicates that we cannot reject the null hypothesis that cancellation timing is the same for strategic and non-strategic cancellations. This finding is crucial because it demonstrates that simple timing-based heuristics (such as ``quick cancellations are more suspicious'') are not reliable indicators of strategic behavior.
+
+This result invalidates simplistic heuristics used in prior platform logic. Figure 5 depicts the overlapping distributions.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/h4_timing_histogram.pdf}
+\caption{Histogram comparison of time-to-cancel (H4 test): Distributions largely overlap, indicating timing is an unreliable signal}
+\label{fig:h4_timing}
+\end{figure}
+
+\subsection{H5 -- Cold-Start Strategic Risk is Predictable Without History}
+
+\textbf{Hypothesis:} Even without historical rider behavior, order-level and session-level features can predict strategic cancellation risk.
+
+\textbf{Method:} Train a restricted Random Forest classifier using only first-order or zero-history rider data. Score performance and interpret top predictors.
+
+\textbf{Findings:}
+\begin{itemize}
+    \item AUC-ROC: 0.682 (95 percent CI: 0.641--0.723)
+    \item Precision at 0.30 threshold: 71.3 percent
+    \item Recall at 0.30 threshold: 42.1 percent
+    \item Key features: session time, time to pickup, total distance
+\end{itemize}
+
+This supports my cold-start logic and the platform's ability to enforce low-friction early screening.
+
+\subsection{Summary of Hypothesis Testing Results}
+
+\begin{table}[H]
+\centering
+\caption{Summary of Empirical Hypothesis Tests}
+\label{tab:hypothesis_summary}
+\begin{tabular}{@{}p{3.8cm}p{2.5cm}cp{2.8cm}p{2.5cm}r@{}}
+\toprule
+\textbf{Hypothesis} & \textbf{Test Method} & \textbf{p-value} & \textbf{Effect size} & \textbf{95\% CI} & \textbf{Sample size}\textsuperscript{a} \\
+\midrule
+H1: Behavioral Repetition & Likelihood Ratio & $< 0.001$ & OR = 5.2 & [3.8, 7.1] & 2,406 \\
+H2a: Peak Hour (Z-test) & Two-proportion Z & $< 0.01$ & $d = 0.24$ & [0.06, 0.42] & 447,187 \\
+H2b: Peak Hour (Regression) & Logistic & $< 0.001$ & $\beta = 0.412$\textsuperscript{b} & [0.241, 0.583] & 447,187 \\
+H3: Distance Effect & Logistic & $< 0.001$ & $\beta = 0.034$\textsuperscript{b} & [0.023, 0.045] & 447,187 \\
+H4: Timing Not Predictive & Independent t & $0.140$\textsuperscript{c} & $d = 0.18$ & [--1.1, 7.5] min & 2,118 \\
+H5: Cold-Start Prediction & Random Forest & --\textsuperscript{d} & AUC = 0.682 & [0.641, 0.723] & 8,943 \\
+\bottomrule
+\end{tabular}
+\smallskip
+\footnotesize{\textsuperscript{a} n denotes the number of observations in each hypothesis test.\\
+\textsuperscript{b} $\beta$ refers to the log-odds coefficient from logistic regression.\\
+\textsuperscript{c} Low power (0.41) suggests results should be interpreted with caution.\\
+\textsuperscript{d} Validated through cross-validation; no p-value computed.}
+\end{table}
+
+Together, these results validate my structural assumptions, labeling strategy, and inform feature importance rankings in the predictive modeling phase (Section 9).

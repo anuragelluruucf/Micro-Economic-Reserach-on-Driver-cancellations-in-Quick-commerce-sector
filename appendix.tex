@@ -1,0 +1,180 @@
+% Appendices
+\appendix
+
+\section*{A. Appendix: Variable Definitions and Supplementary Tables}
+\addcontentsline{toc}{section}{Appendix: Variable Definitions and Supplementary Tables}
+
+This appendix contains supporting materials to complement the main analysis. It includes variable definitions, extended data tables, robustness results, and figure captions.
+
+\subsection*{A.1 Variable Definitions}
+\subsubsection*{A.1.1 Raw Variables}
+
+\begin{table}[H]
+\centering
+\caption{Raw Variable Definitions}
+\label{tab:raw_vars}
+\begin{tabular}{p{4cm} p{10cm}}
+\toprule
+\textbf{Variable Name} & \textbf{Description} \\
+\midrule
+order time & Timestamp when order was placed \\
+allot time & Timestamp when order was assigned to a rider \\
+accept time & Timestamp when rider accepted the task \\
+pickup time & Timestamp when order was collected from restaurant \\
+cancelled time & Timestamp of cancellation request \\
+delivered time & Timestamp when order was completed (if applicable) \\
+first mile distance & Distance from current rider location to restaurant \\
+last mile distance & Distance from restaurant to customer \\
+total distance & Sum of first and last mile distances \\
+cancel after pickup & 1 if cancelled after pickup, else 0 \\
+reason text & Logged cancellation reason \\
+is peak hour & 1 if order occurred during peak windows (12--14, 18--21), else 0 \\
+session time & Total time rider was active at time of order (in minutes) \\
+lifetime order count & Number of completed orders by rider up to current one \\
+bike issue rate & \% of rider's cancels attributed to bike issues \\
+cancel rate & \% of orders cancelled by a rider overall \\
+hour & Hour of the day extracted from order time \\
+time to accept & Time between allot and accept (in minutes) \\
+time to pickup & Time between accept and pickup (in minutes) \\
+time to cancel & Time from pickup to cancellation (in minutes) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection*{A.1.2 Engineered Features}
+
+\begin{table}[H]
+\centering
+\caption{Engineered Feature Definitions}
+\label{tab:engineered_features}
+\begin{tabular}{p{4.2cm} p{10.3cm}}
+\toprule
+\textbf{Feature Name} & \textbf{Description} \\
+\midrule
+cancel after pickup & Flag derived from timestamps: cancelled after pickup \\
+is peak hour & Derived from hour: peak = 12--14 or 18--21 \\
+session time & Total minutes active by the rider during the session \\
+bike issue rate & Rider's bike issue cancels / total cancels \\
+cancel rate & Rider's total cancels / total orders \\
+time to accept & Time difference in minutes: accept time -- allot time \\
+time to pickup & Time difference in minutes: pickup time -- accept time \\
+time to cancel & Time difference in minutes: cancelled time -- pickup time \\
+distance $\times$ peak & Interaction term: total distance $\times$ is peak hour \\
+distance $\times$ fatigue & Interaction term: total distance $\times$ session time \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+These engineered features translate theoretical constructs (e.g., cost, fatigue, outside option value) into measurable model inputs.
+
+\subsection*{A.2 Supplementary Tables}
+\subsubsection*{A.2.1 Descriptive Statistics}
+
+\begin{table}[H]
+\centering
+\caption{Descriptive Statistics for Key Variables}
+\label{tab:descriptive_stats}
+\begin{tabular}{l r@{.}l r@{.}l r@{.}l r@{.}l r@{.}l}
+\toprule
+\textbf{Variable} & \multicolumn{2}{c}{\textbf{Mean}} & \multicolumn{2}{c}{\textbf{Std Dev}} & \multicolumn{2}{c}{\textbf{Min}} & \multicolumn{2}{c}{\textbf{Max}} \\
+\midrule
+Total Distance (km)       & 5&73  & 3&21  & 0&10  & 25&8  \\
+Session Time (min)        & 87&3  & 112&4 & 0&0   & 720&0 \\
+Time to Accept (min)      & 2&1   & 4&8   & 0&0   & 120&0 \\
+Time to Pickup (min)      & 15&7  & 12&3  & 0&0   & 60&0 \\
+Time to Cancel (min)      & 21&4  & 18&6  & 0&0   & 180&0 \\
+Lifetime Orders           & 145&2 & 287&2 & 1&0   & 5432&0 \\
+Cancel Rate (\%)          & 3&5   & 7&2   & 0&0   & 100&0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection*{A.2.2 Label Sensitivity Test Results}
+
+\begin{table}[H]
+\centering
+\caption{Label Sensitivity Test Results}
+\label{tab:label_sensitivity}
+\begin{tabular}{p{4.5cm} r@{.}l r@{.}l r@{.}l r@{.}l}
+\toprule
+\textbf{Configuration} & \multicolumn{2}{c}{\textbf{Strategic \%}} & \multicolumn{2}{c}{\textbf{AUC}} & \multicolumn{2}{c}{\textbf{Precision}} & \multicolumn{2}{c}{\textbf{Recall}} \\
+\midrule
+Base (2, 70\%, 20\%)     & 1&3  & 0&723 & 2&6 & 66&0 \\
+Relaxed (1, 50\%, 10\%)  & 3&1  & 0&682 & 1&2 & 78&9 \\
+Strict (3, 80\%, 30\%)   & 0&6  & 0&743 & 5&1 & 53&4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\vspace{1em}
+
+\subsubsection*{A.2.3 Cold-Start Rider Flagged Examples}
+
+\begin{table}[H]
+\centering
+\caption{Cold-Start Rider Flagged Examples}
+\label{tab:cold_start_examples}
+\begin{tabular}{cccccc}
+\toprule
+\textbf{Distance (km)} & \textbf{Time to Pickup} & \textbf{Hour} & \textbf{Peak Hour} & \textbf{Risk Score} \\
+\midrule
+4.16 & 41.42 min & 14 & Yes & 0.30 \\
+5.46 & 32.50 min & 16 & No  & 0.28 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\vspace{1em}
+
+\subsection*{A.3 Full Confusion Matrix for Balanced Model}
+
+\begin{table}[H]
+\centering
+\caption{Full Confusion Matrix for Balanced Model}
+\label{tab:balanced_confusion}
+\begin{tabular}{lcc}
+\toprule
+\textbf{} & \textbf{Predicted Strategic} & \textbf{Predicted Genuine} \\
+\midrule
+Actual Strategic & 1,143 & 588 \\
+Actual Genuine   & 43,067 & 86,245 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\vspace{1em}
+
+\subsection*{A.4 Glossary of Acronyms}
+
+\begin{itemize}
+    \item \textbf{API} -- Application Programming Interface: software intermediary for applications
+    \item \textbf{AUC-PR} -- Area Under the Precision--Recall Curve: performance metric for imbalanced data
+    \item \textbf{AUC-ROC} -- Area Under the Receiver Operating Characteristic Curve: measure of model discrimination
+    \item \textbf{CI} -- Confidence Interval: range of plausible values for parameter estimate
+\end{itemize}
+
+\newpage
+\subsection*{A.4 Glossary of Acronyms (continued)}
+
+\begin{itemize}
+    \item \textbf{EU} -- European Union: political and economic union
+    \item \textbf{FN} -- False Negative: incorrect rejection of true hypothesis
+    \item \textbf{FP} -- False Positive: incorrect acceptance of false hypothesis
+    \item \textbf{FPR} -- False Positive Rate: proportion of negatives incorrectly classified
+    \item \textbf{FTE} -- Full-Time Employee: worker employed for standard hours
+    \item \textbf{GDPR} -- General Data Protection Regulation: EU data privacy law
+    \item \textbf{ML} -- Machine Learning: computational methods for pattern recognition
+    \item \textbf{OR} -- Odds Ratio: measure of association between exposure and outcome
+    \item \textbf{ROI} -- Return on Investment: ratio of net profit to investment cost
+    \item \textbf{SD} -- Standard Deviation: measure of variability
+    \item \textbf{SE} -- Standard Error: standard deviation of sampling distribution
+    \item \textbf{SHAP} -- SHapley Additive exPlanations: game-theoretic approach to model interpretation
+    \item \textbf{SLA} -- Service Level Agreement: contractual performance standards
+    \item \textbf{SLV} -- Service Level Violation: failure to meet agreed performance standards
+    \item \textbf{TP} -- True Positive: correct identification of positive case
+    \item \textbf{US} -- United States: country in North America
+\end{itemize}
+
+\vspace{1em}
+
+\noindent\textit{This appendix serves as a repository of technical precision, ensuring that every variable and result cited in the core document is transparently defined and reproducible.}
